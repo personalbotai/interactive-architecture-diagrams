@@ -4,42 +4,577 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Architecture Diagrams</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            background: rgba(255,255,255,0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        h1 { font-size: 3rem; margin-bottom: 1rem; }
-        p { font-size: 1.2rem; opacity: 0.9; }
-        .status {
-            display: inline-block;
-            margin-top: 1rem;
-            padding: 0.5rem 1.5rem;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50px;
-            font-size: 0.9rem;
-        }
+        .mermaid { background: #1e293b; padding: 1rem; border-radius: 0.5rem; }
+        #editor { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; tab-size: 2; }
+        .template-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+        .template-card:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .spinner { animation: spin 1s linear infinite; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>🏛️ Interactive Architecture Diagrams</h1>
-        <p>Visualize complex architectures, flows, and state machines using Mermaid JS</p>
-        <div class="status">🚧 Under Construction</div>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <nav class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-project-diagram text-blue-400 text-xl mr-2"></i>
+                    <span class="text-xl font-bold text-blue-400">Architecture Diagrams</span>
+                    <span class="ml-2 px-2 py-0.5 bg-green-900 text-green-300 text-xs rounded">v1.0</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <button onclick="showTemplates()" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-shapes mr-1"></i> Templates
+                    </button>
+                    <button onclick="exportSVG()" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-file-image mr-1"></i> Export SVG
+                    </button>
+                    <button onclick="exportPNG()" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-file-png mr-1"></i> Export PNG
+                    </button>
+                    <div class="relative">
+                        <button onclick="toggleShare()" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                            <i class="fas fa-share-alt mr-1"></i> Share
+                        </button>
+                        <div id="share-panel" class="absolute right-0 mt-2 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl hidden p-4">
+                            <p class="text-sm text-gray-400 mb-2">Shareable URL:</p>
+                            <input type="text" id="share-url" readonly class="w-full bg-gray-700 text-gray-200 px-3 py-2 rounded text-sm mb-2">
+                            <button onclick="copyShareUrl()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm">
+                                <i class="fas fa-copy mr-1"></i> Copy URL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Templates Modal -->
+        <div id="templates-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
+            <div class="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-white">Diagram Templates</h2>
+                    <button onclick="hideTemplates()" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="template-card bg-gray-700 p-4 rounded-lg" onclick="loadTemplate('flowchart')">
+                            <h3 class="font-semibold text-white mb-2"><i class="fas fa-flowchart mr-2 text-blue-400"></i>Flowchart</h3>
+                            <pre class="text-xs text-gray-300 bg-gray-900 p-2 rounded overflow-x-auto">graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]</pre>
+                        </div>
+                        <div class="template-card bg-gray-700 p-4 rounded-lg" onclick="loadTemplate('sequence')">
+                            <h3 class="font-semibold text-white mb-2"><i class="fas fa-stream mr-2 text-green-400"></i>Sequence Diagram</h3>
+                            <pre class="text-xs text-gray-300 bg-gray-900 p-2 rounded overflow-x-auto">sequenceDiagram
+    participant User
+    participant System
+    User->>System: Request
+    System-->>User: Response</pre>
+                        </div>
+                        <div class="template-card bg-gray-700 p-4 rounded-lg" onclick="loadTemplate('class')">
+                            <h3 class="font-semibold text-white mb-2"><i class="fas fa-cube mr-2 text-purple-400"></i>Class Diagram</h3>
+                            <pre class="text-xs text-gray-300 bg-gray-900 p-2 rounded overflow-x-auto">classDiagram
+    class Animal {
+        +String name
+        +eat()
+        +move()
+    }
+    class Duck {
+        +quack()
+    }
+    Animal <|-- Duck</pre>
+                        </div>
+                        <div class="template-card bg-gray-700 p-4 rounded-lg" onclick="loadTemplate('state')">
+                            <h3 class="font-semibold text-white mb-2"><i class="fas fa-state mr-2 text-yellow-400"></i>State Diagram</h3>
+                            <pre class="text-xs text-gray-300 bg-gray-900 p-2 rounded overflow-x-auto">stateDiagram-v2
+    [*] --> Idle
+    Idle --> Processing: start
+    Processing --> Success: complete
+    Processing --> Error: fail
+    Success --> Idle: reset
+    Error --> Idle: reset</pre>
+                        </div>
+                        <div class="template-card bg-gray-700 p-4 rounded-lg" onclick="loadTemplate('gantt')">
+                            <h3 class="font-semibold text-white mb-2"><i class="fas fa-chart-bar mr-2 text-red-400"></i>Gantt Chart</h3>
+                            <pre class="text-xs text-gray-300 bg-gray-900 p-2 rounded overflow-x-auto">gantt
+    title Project Timeline
+    section Design
+    UI/UX:done, des1, 2024-01-01, 3d
+    section Development
+    Backend:active, dev1, 2024-01-04, 5d
+    Frontend: dev2, after des1, 7d</pre>
+                        </div>
+                        <div class="template-card bg-gray-700 p-4 rounded-lg" onclick="loadTemplate('er')">
+                            <h3 class="font-semibold text-white mb-2"><i class="fas fa-database mr-2 text-indigo-400"></i>ER Diagram</h3>
+                            <pre class="text-xs text-gray-300 bg-gray-900 p-2 rounded overflow-x-auto">erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE-ITEM : contains
+    CUSTOMER }|..|{ DELIVERY-ADDRESS : uses</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor & Preview -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Editor Panel -->
+            <div class="bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 class="font-semibold text-white"><i class="fas fa-code mr-2"></i>Mermaid Code</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="formatCode()" class="text-gray-400 hover:text-white text-sm" title="Format">
+                            <i class="fas fa-magic"></i>
+                        </button>
+                        <button onclick="clearEditor()" class="text-gray-400 hover:text-white text-sm" title="Clear">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button onclick="loadFromLocal()" class="text-gray-400 hover:text-white text-sm" title="Load Saved">
+                            <i class="fas fa-folder-open"></i>
+                        </button>
+                        <button onclick="saveToLocal()" class="text-gray-400 hover:text-white text-sm" title="Save">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 p-4">
+                    <textarea id="editor" class="w-full h-full bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your Mermaid diagram code here..."></textarea>
+                </div>
+                <div class="p-4 border-t border-gray-700 text-xs text-gray-400 flex justify-between">
+                    <span><i class="fas fa-keyboard mr-1"></i> Auto-updates as you type</span>
+                    <span id="char-count">0 chars</span>
+                </div>
+            </div>
+
+            <!-- Preview Panel -->
+            <div class="bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 class="font-semibold text-white"><i class="fas fa-eye mr-2"></i>Preview</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="zoomOut()" class="text-gray-400 hover:text-white text-sm" title="Zoom Out">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <span id="zoom-level" class="text-sm text-gray-400">100%</span>
+                        <button onclick="zoomIn()" class="text-gray-400 hover:text-white text-sm" title="Zoom In">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button onclick="resetZoom()" class="text-gray-400 hover:text-white text-sm" title="Reset">
+                            <i class="fas fa-compress-arrows-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 p-4 overflow-auto flex items-center justify-center bg-gray-900" id="preview-container">
+                    <div id="preview" class="mermaid transition-all duration-300"></div>
+                </div>
+                <div class="p-4 border-t border-gray-700 text-xs text-gray-400 flex justify-between">
+                    <span id="status-msg">Ready</span>
+                    <span id="render-time"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <h3 class="font-semibold text-white mb-3"><i class="fas fa-bolt mr-2 text-yellow-400"></i>Quick Actions</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button onclick="insertSnippet('flowchart')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    Flowchart
+                </button>
+                <button onclick="insertSnippet('sequence')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    Sequence
+                </button>
+                <button onclick="insertSnippet('class')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    Class
+                </button>
+                <button onclick="insertSnippet('state')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    State
+                </button>
+                <button onclick="insertSnippet('gantt')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    Gantt
+                </button>
+                <button onclick="insertSnippet('er')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    ER Diagram
+                </button>
+                <button onclick="insertSnippet('pie')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    Pie Chart
+                </button>
+                <button onclick="insertSnippet('mindmap')" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm transition">
+                    Mindmap
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 border-t border-gray-700 mt-8 py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-400 text-sm">
+            <i class="fas fa-info-circle mr-1"></i>
+            Powered by Mermaid.js | Diagrams render in real-time | Auto-save to localStorage
+        </div>
+    </footer>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-lg max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white">Export Diagram</h2>
+                <button onclick="closeExportModal()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="downloadSVG()" class="bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg transition">
+                    <i class="fas fa-file-image text-2xl mb-2"></i><br>
+                    Download SVG
+                </button>
+                <button onclick="downloadPNG()" class="bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg transition">
+                    <i class="fas fa-file-image text-2xl mb-2"></i><br>
+                    Download PNG
+                </button>
+            </div>
+        </div>
     </div>
+
+    <script>
+        // State
+        let currentZoom = 1;
+        let renderTimer = null;
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const previewContainer = document.getElementById('preview-container');
+
+        // Mermaid config
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            securityLevel: 'loose',
+            flowchart: { useMaxWidth: true, htmlLabels: true },
+            sequence: { useMaxWidth: true },
+            gantt: { useMaxWidth: true }
+        });
+
+        // Load saved on startup
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('mermaid-diagram');
+            if (saved) {
+                editor.value = saved;
+            } else {
+                // Default example
+                editor.value = `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#e8f5e8
+    style D fill:#ffebee
+    style E fill:#f3e5f5`;
+            }
+            editor.focus();
+            renderDiagram();
+        });
+
+        // Auto-render on input (debounced)
+        editor.addEventListener('input', () => {
+            document.getElementById('char-count').textContent = editor.value.length + ' chars';
+            clearTimeout(renderTimer);
+            renderTimer = setTimeout(renderDiagram, 500);
+            saveToLocalAuto();
+        });
+
+        async function renderDiagram() {
+            const code = editor.value.trim();
+            if (!code) {
+                preview.innerHTML = '<p class="text-gray-500">Enter Mermaid code to see diagram</p>';
+                document.getElementById('status-msg').textContent = 'Empty';
+                return;
+            }
+
+            document.getElementById('status-msg').textContent = 'Rendering...';
+            const start = performance.now();
+
+            try {
+                const svg = await mermaid.render('mermaid-svg', code);
+                preview.innerHTML = svg;
+                preview.style.transform = `scale(${currentZoom})`;
+                preview.style.transformOrigin = 'center center';
+                const end = performance.now();
+                document.getElementById('render-time').textContent = (end - start).toFixed(2) + 'ms';
+                document.getElementById('status-msg').textContent = 'Rendered';
+            } catch (err) {
+                preview.innerHTML = `<div class="text-red-400 p-4 bg-red-900/30 rounded"><i class="fas fa-exclamation-triangle mr-2"></i>${err.message}</div>`;
+                document.getElementById('status-msg').textContent = 'Error';
+            }
+        }
+
+        // Templates
+        const templates = {
+            flowchart: `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E`,
+            sequence: `sequenceDiagram
+    participant User
+    participant System
+    User->>System: Request Data
+    System-->>User: Return Response
+    Note over System: Processing time: 2ms`,
+            class: `classDiagram
+    class Animal {
+        +String name
+        +eat()
+        +move()
+    }
+    class Duck {
+        +quack()
+    }
+    Animal <|-- Duck
+    Duck : +String breed`,
+            state: `stateDiagram-v2
+    [*] --> Idle
+    Idle --> Processing: start
+    Processing --> Success: complete
+    Processing --> Error: fail
+    Success --> Idle: reset
+    Error --> Idle: reset`,
+            gantt: `gantt
+    title Project Timeline
+    dateFormat YYYY-MM-DD
+    section Design
+    UI/UX:done, des1, 2024-01-01, 3d
+    section Development
+    Backend:active, dev1, 2024-01-04, 5d
+    Frontend: dev2, after des1, 7d
+    section Testing
+    QA: qa1, after dev1, 5d`,
+            er: `erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE-ITEM : contains
+    CUSTOMER }|..|{ DELIVERY-ADDRESS : uses
+    PRODUCT ||--|{ LINE-ITEM : includes
+    PRODUCT }|--|{ CATEGORY : categorized_as`,
+            pie: `pie title Pets adopted
+    "Dogs" : 386
+    "Cats" : 85
+    "Rabbits" : 15`,
+            mindmap: `mindmap
+  root((Architecture))
+    Frontend
+      React
+      Vue
+      Svelte
+    Backend
+      Go
+      Node.js
+      Python
+    Database
+      PostgreSQL
+      MongoDB
+      Redis`
+        };
+
+        function loadTemplate(key) {
+            editor.value = templates[key];
+            hideTemplates();
+            renderDiagram();
+        }
+
+        function showTemplates() {
+            document.getElementById('templates-modal').classList.remove('hidden');
+        }
+
+        function hideTemplates() {
+            document.getElementById('templates-modal').classList.add('hidden');
+        }
+
+        function insertSnippet(type) {
+            const snippets = {
+                flowchart: 'graph TD\n    A --> B',
+                sequence: 'sequenceDiagram\n    participant A\n    participant B\n    A->>B: Hello',
+                class: 'classDiagram\n    class A {\n        +String field\n    }',
+                state: 'stateDiagram-v2\n    [*] --> State1',
+                gantt: 'gantt\n    title Timeline\n    section Section\n    Task :a1, 2024-01-01, 3d',
+                er: 'erDiagram\n    A ||--o{ B : relates',
+                pie: 'pie title Title\n    "A" : 50\n    "B" : 50',
+                mindmap: 'mindmap\n  root\n    Branch1\n    Branch2'
+            };
+            const snippet = snippets[type] || '';
+            editor.value += '\n' + snippet;
+            renderDiagram();
+        }
+
+        // Zoom
+        function zoomIn() {
+            currentZoom = Math.min(currentZoom + 0.25, 3);
+            preview.style.transform = `scale(${currentZoom})`;
+            document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
+        }
+
+        function zoomOut() {
+            currentZoom = Math.max(currentZoom - 0.25, 0.5);
+            preview.style.transform = `scale(${currentZoom})`;
+            document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
+        }
+
+        function resetZoom() {
+            currentZoom = 1;
+            preview.style.transform = 'scale(1)';
+            document.getElementById('zoom-level').textContent = '100%';
+        }
+
+        // Format code (basic)
+        function formatCode() {
+            const code = editor.value;
+            // Simple formatting: normalize line endings and add spacing around operators
+            const formatted = code
+                .replace(/\r\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/([{}]|\[|\])/g, '\n$1\n')
+                .replace(/\n+/g, '\n')
+                .replace(/^\n|\n$/g, '')
+                .split('\n')
+                .map(line => line.trimEnd())
+                .join('\n');
+            editor.value = formatted;
+            renderDiagram();
+        }
+
+        function clearEditor() {
+            if (confirm('Clear diagram?')) {
+                editor.value = '';
+                renderDiagram();
+            }
+        }
+
+        // LocalStorage
+        function saveToLocal() {
+            localStorage.setItem('mermaid-diagram', editor.value);
+            showToast('Diagram saved!');
+        }
+
+        function saveToLocalAuto() {
+            localStorage.setItem('mermaid-diagram', editor.value);
+        }
+
+        function loadFromLocal() {
+            const saved = localStorage.getItem('mermaid-diagram');
+            if (saved) {
+                editor.value = saved;
+                renderDiagram();
+                showToast('Diagram loaded!');
+            } else {
+                showToast('No saved diagram found', 'error');
+            }
+        }
+
+        // Share
+        function toggleShare() {
+            const panel = document.getElementById('share-panel');
+            if (panel.classList.contains('hidden')) {
+                const encoded = btoa(encodeURIComponent(editor.value));
+                const url = window.location.origin + window.location.pathname + '?diagram=' + encoded;
+                document.getElementById('share-url').value = url;
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+
+        function copyShareUrl() {
+            const input = document.getElementById('share-url');
+            input.select();
+            document.execCommand('copy');
+            showToast('URL copied to clipboard!');
+        }
+
+        // Load from URL param on startup
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            const diagram = params.get('diagram');
+            if (diagram) {
+                try {
+                    const decoded = decodeURIComponent(atob(diagram));
+                    editor.value = decoded;
+                    renderDiagram();
+                } catch (e) {
+                    console.error('Failed to load shared diagram');
+                }
+            }
+        });
+
+        // Export
+        function exportSVG() {
+            const svg = preview.querySelector('svg');
+            if (!svg) {
+                alert('No diagram to export');
+                return;
+            }
+            const serializer = new XMLSerializer();
+            const source = serializer.serializeToString(svg);
+            const blob = new Blob([source], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'diagram.svg';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportPNG() {
+            const svg = preview.querySelector('svg');
+            if (!svg) {
+                alert('No diagram to export');
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                const pngUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = pngUrl;
+                a.download = 'diagram.png';
+                a.click();
+            };
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        }
+
+        function showToast(message, type = 'success') {
+            // Simple toast implementation
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded-lg text-white z-50 ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Close modals on outside click
+        document.getElementById('templates-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) hideTemplates();
+        });
+        document.getElementById('export-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeExportModal();
+        });
+    </script>
 </body>
 </html>
